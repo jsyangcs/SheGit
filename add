@@ -1,0 +1,40 @@
+#!/usr/bin/env dash
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+# add file to index
+path=.shrug/index
+for file in "$@"
+do
+    if ! test -e "$file"
+    then
+        if ! test -e $path/"$file"
+        then
+            # if file does not exists in working dir or index
+            echo "$0: error: can not open '$file'" 1>&2
+            exit 1
+        fi
+    fi    
+done
+
+for file in "$@"
+do
+    # if file exists in working dir
+    if test -e "$file"
+    then
+        cp "$file" $path
+    # if file only exists in index
+    elif test -e $path/"$file"
+    then
+        rm $path/"$file"
+    # if file does not exists in working dir or index
+    else
+        echo "$0: error: can not open '$file'" 1>&2
+        exit 1
+    fi    
+done

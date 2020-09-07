@@ -1,0 +1,150 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+indexDir='.shrug/index'
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+# test if no commit exists
+if test "$(ls $commitDir)" = ''
+then
+    echo "$0: error: your repository does not have any commits yet" 1>&2
+    exit 1
+fi
+
+# get the dir of newest commit
+branch=$(cat .shrug/.head)
+log=.shrug/log/"$branch"
+cmt=$(cat "$log"|tail -n1|sed 's/ .*//')
+curDir=$commitDir/$cmt
+
+
+# file for temporary use
+tmp=.shrug/.statustmp
+
+# get files in all three places
+if ! test "$(ls .)" = ''
+then
+    for file in *
+    do
+        test -d "$file" && continue
+        echo "$file" >>"$tmp"
+    done
+fi
+
+if ! test "$(ls "$indexDir")" = ''
+then
+    for file in $indexDir/*
+    do
+        test -d "$file" && continue
+        echo "$file"|sed 's/.*\///' >>"$tmp"
+    done
+fi
+
+if ! test "$(ls "$curDir")" = ''
+then
+    for file in $curDir/*
+    do
+        test -d "$file" && continue
+        echo "$file"|sed 's/.*\///' >>"$tmp"
+    done
+fi
+
+if ! test -f "$tmp"
+then
+    exit 0
+fi
+
+sort "$tmp"|uniq >.shrug/.status
+rm .shrug/.statustmp
+
+while read line
+do
+    workFile="$line"
+    indexFile=$indexDir/"$line"
+    repoFile=$curDir/"$line"
+
+    # test if file in working dir
+    inW=1
+    if test -f "$workFile"
+    then
+        inW=0
+    fi
+    # test if file in index
+    inI=1
+    if test -f "$indexFile"
+    then
+        inI=0
+    fi
+    # test if file in repo
+    inR=1
+    if test -f "$repoFile"
+    then
+        inR=0
+    fi
+
+    if test $inW -eq 0 -a $inI -eq 1 -a $inR -eq 1
+    then
+        echo "$line" - 'untracked'
+    elif test $inW -eq 1 -a $inI -eq 1 -a $inR -eq 0
+    then
+        echo "$line" - 'deleted'
+    elif test $inW -eq 1 -a $inI -eq 0 -a $inR -eq 1
+    then
+        echo "$line" - 'added to index, file deleted'
+    elif test $inW -eq 1 -a $inI -eq 0 -a $inR -eq 0
+    then
+        if diff "$indexFile" "$repoFile" >/dev/null 2>&1
+        then
+            echo "$line" - 'file deleted'
+        else
+            echo "$line" - 'file deleted, different changes staged for commit'
+        fi
+    elif test $inW -eq 0 -a $inI -eq 0 -a $inR -eq 1
+    then
+        if diff "$indexFile" "$workFile" >/dev/null 2>&1
+        then
+            echo "$line" - 'added to index'
+        else
+            echo "$line" - 'added to index, file changed'
+        fi        
+    elif test $inW -eq 0 -a $inI -eq 1 -a $inR -eq 0
+    then
+        #if diff "$repoFile" "$workFile" >/dev/null 2>&1
+        #then
+        #    echo "$line" - 'added to index'
+        #else
+        #    echo "$line" - 'added to index, file changed'
+        #fi
+        echo "$line" - 'untracked'    
+    else
+        if diff "$repoFile" "$workFile" >/dev/null 2>&1 
+        then
+            if diff "$indexFile" "$workFile" >/dev/null 2>&1
+            then
+                echo "$line" - 'same as repo'
+            else
+                echo "$line" - 'added to index, file changed'
+            fi
+        else
+            if diff "$indexFile" "$workFile" >/dev/null 2>&1
+            then
+                echo "$line" - 'file changed, changes staged for commit'
+            else
+                if diff "$indexFile" "$repoFile" >/dev/null 2>&1
+                then
+                    echo "$line" - 'file changed, changes not staged for commit'
+                else
+                    echo "$line" - 'file changed, different changes staged for commit'
+                fi
+            fi
+        fi
+    fi
+done <.shrug/.status
+
+rm .shrug/.status

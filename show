@@ -1,0 +1,54 @@
+#!/usr/bin/env dash
+commitDir='.shrug/commit'
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+if echo "$1"|grep -P '^\d+:' >/dev/null
+then
+    cnt=$(echo "$1"|sed s/:.*//)
+    name=$(echo "$1"|sed s/[0-9]*://)
+
+    file=$commitDir/$cnt/$name
+
+    # get the id of newest commit
+    suc=0
+    new=$commitDir/$suc
+    while test -d "$new"
+    do
+        suc=$(expr $suc + 1)
+        new=$commitDir/$suc
+    done
+    # test if input cnt is valid
+    cur=$(expr $suc - 1)
+
+    if test $cnt -gt $cur
+    then
+        echo "$0: error: unknown commit '$cnt'" >&2
+        exit 1
+    fi
+
+    if ! test -e "$file"
+    then
+        echo "$0: error: '$name' not found in commit $cnt" >&2
+        exit 1
+    fi
+    cat "$file"
+    exit 0
+fi
+
+
+
+name=$(echo "$1"|sed s/://)
+file=.shrug/index/"$name"
+if ! test -e "$file"
+then
+    echo "shrug-show: error: '$name' not found in index" >&2
+    exit 1
+fi
+
+cat "$file"

@@ -1,0 +1,23 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+# test if no commit exists
+if test "$(ls $commitDir)" = ''
+then
+    echo "$0: error: your repository does not have any commits yet" 1>&2
+    exit 1
+fi
+
+# find the history of current branch
+branch=$(cat .shrug/.head)
+log=.shrug/log/"$branch"
+
+cat "$log"|sort -nr

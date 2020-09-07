@@ -1,0 +1,99 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+logDir='.shrug/log'
+
+# function to test if the contents of one log file is subset to the other
+isSubset() {
+    cur="$1"
+    tar="$2"
+    if test $(wc -l <"$cur") -gt $(wc -l <"$tar")
+    then
+        return 1
+    fi
+    count=1
+    while read line
+    do 
+        if test $count -eq 1
+        then
+            tarLine=$(head -n1 "$tar")
+        else
+            tarLine=$(head -n$count "$tar"|tail -n1)
+        fi
+        if test "$line" != "$tarLine"
+        then
+            return 1
+        fi
+        count=$(expr $count + 1)
+    done <"$cur"
+    return 0
+}
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+# test if no commit exists
+if test "$(ls $commitDir)" = ''
+then
+    echo "$0: error: your repository does not have any commits yet" 1>&2
+    exit 1
+fi
+
+curBranch=$(cat .shrug/.head)
+curLogFile=$logDir/"$curBranch"
+
+if test $# -eq 0
+then
+    # show all the branches
+    for path in $logDir/*
+    do
+        branch=$(basename "$path")
+        echo "$branch"
+    done
+elif test "$1" = '-d'
+then
+    # delete the branch
+    branch="$2"
+    logFile=$logDir/"$branch"
+    if test "$branch" = 'master'
+    then
+        echo "$0: error: can not delete branch 'master'" 1>&2
+        exit 1
+    fi
+
+    if test -f "$logFile"
+    then
+        # if $branch is subset of currrent branch, then can delete
+        if isSubset "$logFile" "$curLogFile"
+        then
+            rm "$logFile"
+            echo "Deleted branch '$branch'"
+        else
+            echo "$0: error: branch '$branch' has unmerged changes" 1>&2
+            exit 1
+        fi
+    else
+        echo "$0: error: branch '$branch' does not exist" 1>&2
+        exit 1
+    fi
+else
+    # create a new branch
+    newBranch="$1"
+    curBranch=$(cat .shrug/.head)
+    curLogFile=$logDir/"$curBranch"
+    newLogFile=$logDir/"$newBranch"
+
+    # test if new branch exists
+    if test -f "$newLogFile"
+    then
+        echo "$0: error: branch '$newBranch' already exists" 1>&2
+        exit 1        
+    else
+        # cp log file
+        cp "$curLogFile" "$newLogFile"
+    fi    
+fi

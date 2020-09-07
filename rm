@@ -1,0 +1,181 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+indexDir='.shrug/index'
+
+rmTmp=.shrug/.rm
+touch $rmTmp
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "shrug-add: error: no .shrug directory containing shrug repository exists" 1>&2
+    rm $rmTmp
+    exit 1
+fi
+
+# test if no commit exists
+if test "$(ls $commitDir)" = ''
+then
+    echo "$0: error: your repository does not have any commits yet" 1>&2
+    rm $rmTmp
+    exit 1
+fi
+
+# get the dir of cur commit
+branch=$(cat .shrug/.head)
+log=.shrug/log/"$branch"
+cmt=$(cat "$log"|tail -n1|sed 's/ .*//')
+curDir=$commitDir/$cmt
+
+
+if test "$1" = '--cached'
+then
+    shift
+    for file in "$@"
+    do
+        indexFile=$indexDir/"$file"
+        # test if file in index
+        if ! test -e "$indexFile"
+        then
+            echo "$0: error: '$file' is not in the shrug repository" 1>&2
+            rm $rmTmp
+            exit 1
+        fi
+        
+        # test if file is in working dir
+        if ! test -e "$file"
+        then
+            echo "$indexFile" >>$rmTmp
+            continue
+        fi
+
+        diffIW=1
+        # test diff between file in index and file in working dir
+        if diff "$file" "$indexFile" >/dev/null 2>&1
+        then
+            diffIW=0
+        fi
+        # test diff between file in index and file in newest commit(including the case file not in repo)
+        commitFile=$curDir/"$file"
+        diffIC=1
+        if diff "$commitFile" "$indexFile" >/dev/null 2>&1
+        then
+            diffIC=0
+        fi
+
+        if test $diffIW = 1 -a $diffIC = 1
+        then
+            echo "$0: error: '$file' in index is different to both working file and repository" 1>&2
+            rm $rmTmp
+            exit 1
+        else
+            echo "$indexFile" >>$rmTmp
+        fi
+    done
+
+elif test "$1" = '--force'
+then
+    if test "$2" = '--cached'
+    then
+        shift
+        shift
+        for file in "$@"
+        do
+            indexFile=$indexDir/"$file"
+            # test if file in index
+            if ! test -e "$indexFile"
+            then
+                echo "$0: error: '$file' is not in the shrug repository" 1>&2
+                rm $rmTmp
+                exit 1
+            fi
+            echo "$indexFile" >>$rmTmp
+        done
+    else
+        shift
+        for file in "$@"
+        do
+            indexFile=$indexDir/"$file"
+            # test if file in index
+            if ! test -e "$indexFile"
+            then
+                echo "$0: error: '$file' is not in the shrug repository" 1>&2
+                rm $rmTmp
+                exit 1
+            fi
+            # test if file is in working dir
+            if ! test -e "$file"
+            then
+                echo "$indexFile" >>$rmTmp
+                continue
+            fi
+            echo "$file" >>$rmTmp
+            echo "$indexFile" >>$rmTmp
+        done
+
+
+    fi
+else
+    for file in "$@"
+    do
+        indexFile=$indexDir/"$file"
+
+        # test if file in index
+        if ! test -e "$indexFile"
+        then
+            echo "$0: error: '$file' is not in the shrug repository" 1>&2
+            rm $rmTmp
+            exit 1
+        fi
+        
+        # test if file is in working dir
+        if ! test -e "$file"
+        then
+            echo "$indexFile" >>$rmTmp
+            continue
+        fi
+
+        diffIW=1
+        # test diff between file in index and file in working dir
+        if diff "$file" "$indexFile" >/dev/null 2>&1
+        then
+            diffIW=0
+        fi
+        # test diff between file in index and file in newest commit(including the case file not in repo)
+        commitFile=$curDir/"$file"
+        diffIC=1
+        if diff "$commitFile" "$indexFile" >/dev/null 2>&1
+        then
+            diffIC=0
+        fi
+
+        if test $diffIW -eq 1 -a $diffIC -eq 1
+        then
+            echo "$0: error: '$file' in index is different to both working file and repository" 1>&2
+            rm $rmTmp
+            exit 1           
+        elif test $diffIW -eq 1
+        then
+            echo "$0: error: '$file' in repository is different to working file" 1>&2
+            rm $rmTmp
+            exit 1
+        elif test $diffIC -eq 1
+        then
+            echo "$0: error: '$file' has changes staged in the index" 1>&2
+            rm $rmTmp
+            exit 1
+        else
+            echo "$file" >>$rmTmp
+            echo "$indexFile" >>$rmTmp
+        fi
+    done
+fi
+
+
+while read line
+do
+    rm "$line"
+done <$rmTmp
+
+rm $rmTmp

@@ -1,0 +1,228 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+logDir='.shrug/log'
+indexDir='.shrug/index'
+curBranch=$(cat .shrug/.head)
+
+newBranch="$1"
+
+newLogFile=$logDir/"$newBranch"
+
+cpWorkCheckoutTmp=.shrug/.cpwkct
+cpIndexCheckoutTmp=.shrug/.cpixct
+rmWorkCheckoutTmp=.shrug/.rmwkct
+rmIndexCheckoutTmp=.shrug/.rmixct
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+# test if no commit exists
+if test "$(ls $commitDir)" = ''
+then
+    echo "$0: error: your repository does not have any commits yet" 1>&2
+    exit 1
+fi
+
+touch $cpWorkCheckoutTmp
+touch $cpIndexCheckoutTmp
+touch $rmWorkCheckoutTmp
+touch $rmIndexCheckoutTmp
+
+# test if want to change to cur branch
+if test "curBranch" = "newBranch"
+then
+    echo "Already on '$curBranch'" 1>&2
+    rm $cpWorkCheckoutTmp
+    rm $cpIndexCheckoutTmp
+    rm $rmWorkCheckoutTmp
+    rm $rmIndexCheckoutTmp
+    exit 1    
+# test if the branch wanted exists
+elif test -f "$newLogFile"
+then
+
+
+    # get the commit dir of cur branch
+    curCommit=$commitDir/"$(cat $logDir/"$curBranch"|tail -n1|sed 's/ .*//')"
+    # get the commit dir of new branch
+    newCommit=$commitDir/"$(cat $logDir/"$newBranch"|tail -n1|sed 's/ .*//')" 
+
+    # change contents of working dir & index
+    for curFile in "$curCommit"/*
+    do
+        file=$(basename "$curFile")
+        newFile="$newCommit"/"$file"
+        if test -f "$newFile"
+        then
+            if diff "$curFile" "$newFile" >/dev/null 2>&1
+            then
+                continue
+            else
+                # need exception if $file is different from $curFile, may lose work
+                if test -f "$file"
+                then
+                    if diff "$curFile" "$file" >/dev/null 2>&1
+                    then
+                        echo "$newFile" >>$cpWorkCheckoutTmp
+                    else
+                        echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                        echo "$file" 1>&2
+                        rm $cpWorkCheckoutTmp
+                        rm $cpIndexCheckoutTmp
+                        rm $rmWorkCheckoutTmp
+                        rm $rmIndexCheckoutTmp
+                        exit 1 
+                    fi
+                else
+                    echo "$newFile" >>$cpWorkCheckoutTmp
+                fi
+
+                if test -f $indexDir/"$file"
+                then
+                    if diff "$curFile" $indexDir/"$file" >/dev/null 2>&1
+                    then
+                        echo "$newFile" >>$cpIndexCheckoutTmp
+                    else
+                        echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                        echo "$file" 1>&2
+                        rm $cpWorkCheckoutTmp
+                        rm $cpIndexCheckoutTmp
+                        rm $rmWorkCheckoutTmp
+                        rm $rmIndexCheckoutTmp
+                        exit 1 
+                    fi
+                else
+                    echo "$newFile" >>$cpIndexCheckoutTmp
+                fi
+
+            fi
+        else
+            # need exception if $file is different from $curFile, may lose work
+            if test -f "$file"
+            then
+                if diff "$curFile" "$file" >/dev/null 2>&1
+                then
+                    echo "$file" >>$rmWorkCheckoutTmp
+                else
+                    echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                    echo "$file" 1>&2
+                    rm $cpWorkCheckoutTmp
+                    rm $cpIndexCheckoutTmp
+                    rm $rmWorkCheckoutTmp
+                    rm $rmIndexCheckoutTmp                    
+                    exit 1 
+                fi
+            else
+                echo "$file" >>$rmWorkCheckoutTmp
+            fi
+
+            if test -f $indexDir/"$file"
+            then
+                if diff "$curFile" $indexDir/"$file" >/dev/null 2>&1
+                then
+                    echo $indexDir/"$file" >>$rmIndexCheckoutTmp
+                else
+                    echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                    echo "$file" 1>&2
+                    rm $cpWorkCheckoutTmp
+                    rm $cpIndexCheckoutTmp
+                    rm $rmWorkCheckoutTmp
+                    rm $rmIndexCheckoutTmp
+                    exit 1 
+                fi
+            else
+                echo $indexDir/"$file" >>$rmIndexCheckoutTmp
+            fi
+        fi
+    done
+
+    for newFile in "$newCommit"/*
+    do
+        file=$(basename "$newFile")
+        if test -f "$curCommit"/"$file"
+        then
+            continue
+        else
+            # need exception if $file in working dir is different from "$curCommit"/"$file"
+            if test -f "$file"
+            then
+                if diff "$curFile" "$file" >/dev/null 2>&1
+                then
+                    echo "$newFile" >>$cpWorkCheckoutTmp
+                else
+                    echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                    echo "$file" 1>&2
+                    rm $cpWorkCheckoutTmp
+                    rm $cpIndexCheckoutTmp
+                    rm $rmWorkCheckoutTmp
+                    rm $rmIndexCheckoutTmp                    
+                    exit 1 
+                fi
+            else
+                echo "$newFile" >>$cpWorkCheckoutTmp
+            fi
+
+            if test -f $indexDir/"$file"
+            then
+                if diff "$curFile" $indexDir/"$file" >/dev/null 2>&1
+                then
+                    echo "$newFile" >>$cpIndexCheckoutTmp
+                else
+                    echo "$0: error: Your changes to the following files would be overwritten by checkout:" 1>&2
+                    echo "$file" 1>&2
+                    rm $cpWorkCheckoutTmp
+                    rm $cpIndexCheckoutTmp
+                    rm $rmWorkCheckoutTmp
+                    rm $rmIndexCheckoutTmp
+                    exit 1 
+                fi
+            else
+                echo "$newFile" >>$cpIndexCheckoutTmp
+            fi
+        fi
+    done
+
+    # change head pointer
+    echo "$newBranch" >.shrug/.head
+
+    echo "Switched to branch '$newBranch'"
+else
+    echo "$0: error: unknown branch '$newBranch'" 1>&2
+    rm $cpWorkCheckoutTmp
+    rm $cpIndexCheckoutTmp
+    rm $rmWorkCheckoutTmp
+    rm $rmIndexCheckoutTmp
+    exit 1 
+fi
+
+
+while read line
+do
+    cp "$line" .
+done <$cpWorkCheckoutTmp
+
+while read line
+do
+    cp "$line" $indexDir
+done <$cpIndexCheckoutTmp
+
+
+while read line
+do
+    rm "$line"
+done <$rmWorkCheckoutTmp
+
+while read line
+do
+    rm "$line"
+done <$rmIndexCheckoutTmp
+
+rm $cpWorkCheckoutTmp
+rm $cpIndexCheckoutTmp
+rm $rmWorkCheckoutTmp
+rm $rmIndexCheckoutTmp

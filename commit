@@ -1,0 +1,120 @@
+#!/usr/bin/env dash
+
+commitDir='.shrug/commit'
+indexDir='.shrug/index'
+branch=$(cat .shrug/.head)
+log=.shrug/log/"$branch"
+
+# test if .shrug exists
+if ! test -d ".shrug"
+then
+    echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+    exit 1
+fi
+
+if test "$1" = '-m'
+then
+    msg="$2"
+    cnt=0
+
+    # get the id of newest commit
+    new=$commitDir/$cnt
+    while test -d "$new"
+    do
+        cnt=$(expr $cnt + 1)
+        new=$commitDir/$cnt
+    done
+  
+    
+    # test if no commit exists
+    if test "$(ls $commitDir)" = ''
+    then
+        # empty commit as the first commit isn’t possible
+        if test "$(ls "$indexDir")" = ''
+        then
+            echo "nothing to commit" 1>&2
+            exit 1
+        fi
+    else
+        # get the cur dir of the branch
+        cmt=$(cat "$log"|tail -n1|sed 's/ .*//')
+        curDir=$commitDir/$cmt
+
+        # if commit exists but index contents same as the newest commit then no need to commit
+        if diff -r "$indexDir" "$curDir" >/dev/null 2>&1
+        then
+            echo "nothing to commit" 1>&2
+            exit 1
+        fi
+    fi
+
+    echo "Committed as commit $cnt"
+
+    # create new directory & cp contents from index to new directory
+    cp -r .shrug/index "$new"
+
+    # keep down msg for commit
+    echo "$cnt $msg" >>"$log"
+
+elif test "$1" = '-a'
+then
+    # Tell the command to automatically stage files that have been modified and deleted
+    # but new files you have not told Git about are not affected
+    msg="$3"
+    for path in "$indexDir"/*
+    do
+        file=$(basename "$path")
+        if test -f "$file"
+        then
+            #if diff "$file" "$path" >/dev/null 2>&1
+            #then
+            #    continue
+            #fi
+            # if file is modified then update file in index
+            cp "$file" "$path"
+        else
+            # if file is deleted then delete file in index
+            rm "$path"
+        fi
+    done
+
+    # get the id of newest commit
+    cnt=0
+    new=$commitDir/$cnt
+    while test -d "$new"
+    do
+        cnt=$(expr $cnt + 1)
+        new=$commitDir/$cnt
+    done
+
+
+    # test if no commit exists
+    if test "$(ls $commitDir)" = ''
+    then
+        # empty commit as the first commit isn’t possible
+        if test "$(ls "$indexDir")" = ''
+        then
+            echo "nothing to commit" 1>&2
+            exit 1
+        fi
+    else
+        # get the cur dir of the branch
+        cmt=$(cat "$log"|tail -n1|sed 's/ .*//')
+        curDir=$commitDir/$cmt
+
+        # if commit exists but index contents same as the newest commit then no need to commit
+        if diff -r "$indexDir" "$curDir" >/dev/null 2>&1
+        then
+            echo "nothing to commit" 1>&2
+            exit 1
+        fi
+    fi
+
+    echo "Committed as commit $cnt"
+
+    # create new directory & cp contents from index to new directory
+    cp -r .shrug/index "$new"
+
+    # keep down msg for commit
+    echo "$cnt $msg" >>"$log"   
+fi
